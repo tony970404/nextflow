@@ -1,0 +1,70 @@
+# 1) Config file:  
+tells nextflow how to talk to PC/Server
+``` {bash nextflow.config file}
+mkdir
+nano nextflow.config
+process {
+	executor='slurm' //the language Server/PC speaks
+		//SLURM is a job scheduler
+	queue='short' 	 //long or short(<24h)
+	memory='32 GB' 	 //depends
+	maxForks=10 	 //how many processes can be run in parallel
+```
+
+# 2) design file:
+This has all the info needed for ChIP data (replicates, input controls etc)
+	 // tells NF_CORE CHIPseq pipeline which samples are which
+	 //variable depending on pipeline
+```{bash design file}
+nano design.csv
+group,replicate,fastq_1,fastq_2,antibody,control
+//just an example
+POLR2A,3,[file_dir],[file2_if_needed],POLR2A, ENCSR000EEN
+ENCSR000EEN,1,[file_dir],,,
+```
+
+# 3) shell script: 
+info on what resources can be used on PC/Server & where input files are for pipeline
+```{bash}
+nano run.sh
+====//slurm part==================
+#!/bin/bash
+#SBATCH -p short			//short queue
+#SBATCH --job-name=Hepg2_Pol_test 	//job name
+#SBATCH --mail-type=END,FAIL		//tells job fail or done
+#SBATCH --mail-user=			//will send email notifications (!)
+#SBATCH --output=nextflow.out		//output into [file]
+#SBATCH --error=nextflow.err		//error files
+#SBATCH --nodes=1			//usually 1; 1=1PC/1 node on Server
+#SBATCH --ntasks=1			//how many cores are needed
+#SBATCH --mem=6gb			//how much RAM memory is allowed
+#SBATCH --time=10:00:00			//run time -- set run time (optimized for Server pls)
+====//slurm part ends here =======
+pwd; hostname; date
+echo "Lets do chipseq"			//just for fun
+module load singularity/3.1.1		//Singularity: the container for nextflow to run(environment)
+nextflow run nf-core/chipseq -r 1.2.1 \	//'nextflow run (whichseq) -r (version)
+-profile singularity \			//"nextflow use this container"
+--single_end \				//CHIPseq specific parameters
+--input design.csv \			//design file
+					//genome sequence file
+--fasta /scratch/data/genomes/human/gencode/v32/GRCh38.p13.genome.fa \
+					//use to align reads
+					//where gene/promotor starts/stops etc
+--gtf /scratch/data/genomes/human/gencode/v32/gencode.v32.annotation.gtf \
+--macs_gsize 3.2e9 \			//call peaks, genome size required
+					//ignore
+--blacklist /scratch/data/genomes/hg38-blacklist.v2.bed \
+--email your email \			//email
+-resume \				//nextflow parameters if error we could pick up from there we left off
+-c nextflow.config			//final nextflow command to use config
+date					//simple prints date
+```
+
+```{SLURM running shell script}
+sbatch run.sh				//calling language slurm
+squeue -u <identikey> 			//track progress
+tail -f nextflow.out			//"-f" floww
+					//follow the last 10 entries of the file (newest)
+scancel -u <identikey>			//cancelling
+```
